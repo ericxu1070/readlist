@@ -29,6 +29,8 @@ Usage:
   readlist list [--read|--all] [--json]
   readlist add <link|id>... [--bottom] [--json]
                                    fetches each title from arXiv (or the page)
+  readlist add <link> --title "<title>"
+                                   names it yourself, skipping the fetch
   readlist show <paper> [--json]   title, authors, date, abstract
   readlist read <paper>...         mark read
   readlist unread <paper>...       back to the top of the queue
@@ -162,6 +164,18 @@ int Cli::run(const QStringList &argv) {
 
     if (command == "add") {
         const bool bottom = args.removeAll("--bottom") > 0;
+        // --title names the paper yourself, for a link whose page has no
+        // usable title (a bare PDF, a login wall); it skips the fetch.
+        QString givenTitle;
+        const int titleAt = args.indexOf("--title");
+        if (titleAt >= 0) {
+            if (titleAt + 1 >= args.size() || args[titleAt + 1].trimmed().isEmpty())
+                return fail("--title needs a title");
+            givenTitle = args[titleAt + 1].trimmed();
+            args.remove(titleAt, 2);
+            if (args.size() != 1)
+                return fail("--title goes with exactly one link");
+        }
         if (args.isEmpty())
             return fail("add needs at least one arXiv link, id, or web address");
         QStringList urls;
@@ -180,7 +194,7 @@ int Cli::run(const QStringList &argv) {
         for (const QString &url : urls) {
             Paper probe;
             probe.url = url;
-            if (!current.contains(probe.key()) && !metadata.has(probe.key()))
+            if (givenTitle.isEmpty() && !current.contains(probe.key()) && !metadata.has(probe.key()))
                 toFetch << url;
         }
         const QList<PaperInfo> fetched = metadata.fetchBlocking(toFetch);
@@ -208,7 +222,10 @@ int Cli::run(const QStringList &argv) {
             QString problem;
             if (current.contains(paper.key()))
                 problem = current.indexOf(paper.key(), false) >= 0 ? "already in the queue" : "already marked read";
-            else if (!info.isValid())
+            else if (!givenTitle.isEmpty()) {
+                paper.title = givenTitle;
+                problem = current.add(paper, !bottom);
+            } else if (!info.isValid())
                 problem = QStringLiteral("could not fetch the title: %1").arg(info.error.isEmpty() ? "unknown error" : info.error);
             else {
                 paper.title = info.title;

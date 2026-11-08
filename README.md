@@ -51,6 +51,7 @@ paper under Read. Titles, authors, and abstracts are cached in
 
 ```sh
 readlist add 2204.07137 https://arxiv.org/abs/2311.07222 [--bottom] [--json]
+readlist add <link> --title "Title"     # skip the fetch (PDFs, login walls)
 readlist list [--read|--all] [--json]
 readlist show <paper> [--json]
 readlist read|unread|remove <paper>...

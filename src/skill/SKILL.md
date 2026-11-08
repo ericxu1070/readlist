@@ -13,6 +13,7 @@ arXiv id; pass the link or id you were given.
 ```sh
 readlist add 2204.07137 https://arxiv.org/abs/2311.07222   # newest go to the top
 readlist add <link> --bottom                               # or to the bottom
+readlist add <pdf link> --title "Exact title"              # when the page has no title
 readlist list --json                                       # queue, in priority order
 readlist list --all --json                                 # queue plus read papers
 readlist show <paper> --json                               # includes the abstract
