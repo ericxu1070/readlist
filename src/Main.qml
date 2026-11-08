@@ -220,7 +220,7 @@ ApplicationWindow {
                             Label {
                                 visible: !win.showDone
                                 text: (row.index + 1).toLocaleString(Qt.locale(), 'f', 0)
-                                color: row.selected ? theme.accent : theme.muted
+                                color: row.selected ? theme.foreground : theme.muted
                                 font.pixelSize: 13
                                 horizontalAlignment: Text.AlignRight
                                 Layout.preferredWidth: 24
@@ -251,7 +251,10 @@ ApplicationWindow {
                                             : row.modelData.subtitle
                                     elide: Text.ElideRight
                                     font.pixelSize: 12
+                                    // Muted text is blended for the window
+                                    // background and fades on the selection.
                                     color: theme.muted
+                                    Binding on color { when: row.selected; value: Qt.rgba(Qt.color(theme.foreground).r, Qt.color(theme.foreground).g, Qt.color(theme.foreground).b, 0.75) }
                                 }
                             }
                         }
