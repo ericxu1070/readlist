@@ -343,7 +343,9 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 visible: backend.status !== ""
                 text: backend.status
-                elide: Text.ElideRight
+                // Statuses end in what to do next ("Ctrl+Z brings it back");
+                // a long title gives way in the middle instead.
+                elide: Text.ElideMiddle
                 font.pixelSize: 12
                 color: backend.statusIsError ? theme.error : theme.accent
             }
