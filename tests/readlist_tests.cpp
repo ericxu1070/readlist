@@ -46,7 +46,7 @@ const char *kNote =
     "- [ ] [SHAC: Accelerated \\[Policy\\] Learning](https://arxiv.org/abs/2204.07137) · added 2026-11-01\n"
     "- [ ] https://arxiv.org/pdf/2311.07222v2\n"
     "- [x] [Ticked in Obsidian](https://arxiv.org/abs/2503.06623)\n"
-    "A stray thought Eric typed.\n"
+    "A stray thought typed by hand.\n"
     "\n"
     "---\n"
     "\n"
@@ -86,7 +86,7 @@ private slots:
         QCOMPARE(list.queue[0].added, QDate(2026, 11, 1));
         QVERIFY(list.queue[1].needsTitle());
         QCOMPARE(list.queue[1].key(), QString("2311.07222"));
-        QCOMPARE(list.queueLoose, QStringList{"A stray thought Eric typed."});
+        QCOMPARE(list.queueLoose, QStringList{"A stray thought typed by hand."});
         QCOMPARE(list.done.size(), 1);
         QCOMPARE(list.done[0].extra, QStringList{"great"});
 
@@ -99,7 +99,7 @@ private slots:
         QVERIFY(out.startsWith("---\ncreated: 2026-11-08\n"));
         QVERIFY(out.contains("Order is priority.\n\n---\n\n## Queue\n\n- [ ] [SHAC: Accelerated \\[Policy\\] Learning]"));
         QVERIFY(out.contains("- [ ] https://arxiv.org/abs/2311.07222\n"));
-        QVERIFY(out.contains("A stray thought Eric typed."));
+        QVERIFY(out.contains("A stray thought typed by hand."));
         QVERIFY(out.contains("· read 2026-10-02 · great"));
         QVERIFY(out.contains("## Notes\n\nKept as is.\n"));
         // Serializing is stable: a second round trip changes nothing.

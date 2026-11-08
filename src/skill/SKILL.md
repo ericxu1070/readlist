@@ -1,6 +1,6 @@
 ---
 name: readlist
-description: Add papers to, or read and reorder, Eric's arXiv reading list (the readlist app). Use when asked to "add this paper to my reading list", "queue this arXiv paper", "what's on my reading list", "mark X as read", "move X to the top", or when a conversation surfaces a paper worth reading later.
+description: Add papers to, or read and reorder, the user's arXiv reading list (the readlist app). Use when asked to "add this paper to my reading list", "queue this arXiv paper", "what's on my reading list", "mark X as read", "move X to the top", or when a conversation surfaces a paper worth reading later.
 ---
 
 # readlist
@@ -27,5 +27,5 @@ exit 0 on success and 1 with the reason on stderr (for example "already in the
 queue"), so report that reason rather than retrying. Non-arXiv links work too:
 the title comes from the page's meta tags.
 
-Eric opens the list with the "Reading List" app from the Omarchy launcher. After
-adding, tell him the title that was added and its position.
+The user opens the list with the "Reading List" app from the Omarchy launcher. After
+adding, tell them the title that was added and its position.
