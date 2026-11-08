@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Reading List
+Comment=Pick the next paper from your arXiv reading list
+Exec=readlist
+Icon=readlist
+Terminal=false
+Categories=Office;Education;
+Keywords=arxiv;papers;reading;queue;
+StartupWMClass=readlist
