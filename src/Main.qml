@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
+import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
 ApplicationWindow {
@@ -11,10 +12,10 @@ ApplicationWindow {
     minimumHeight: 360
     visible: true
     title: qsTr("Reading List")
-    color: theme.background
-    font.family: "monospace"
+    color: pal.bg
+    font.family: pal.family
 
-    Material.theme: Material.Dark
+    Material.theme: pal.dark ? Material.Dark : Material.Light
     Material.accent: theme.accent
     Material.foreground: theme.foreground
     Material.background: theme.background
@@ -107,63 +108,211 @@ ApplicationWindow {
         onTriggered: if (win.selectedKey !== "") backend.move(win.selectedKey, win.holdTarget)
     }
 
+    // The theme's colors under Apple's role names (the roles keep their name,
+    // the values follow the Omarchy theme).
+    QtObject {
+        id: pal
+        function a(col, alpha) { return Qt.rgba(col.r, col.g, col.b, alpha) }
+
+        readonly property string family: "Inter"
+        readonly property color bg: theme.background
+        readonly property color label: theme.foreground
+        readonly property color labelSecondary: theme.muted
+        readonly property color labelTertiary: a(label, 0.40)
+        readonly property color tint: theme.accent
+        readonly property color tintText: theme.accentForeground
+        readonly property color separator: a(label, 0.10)
+        readonly property color fill: a(label, 0.06)
+        readonly property color fillPressed: a(label, 0.12)
+        readonly property color bgElevated: Qt.tint(bg, a(label, 0.06))
+        readonly property color selection: theme.selection
+        readonly property color danger: theme.error
+        readonly property bool dark: Qt.color(theme.background).hslLightness < 0.5
+        // size, weight, tracking in px
+        readonly property var type: ({
+            title1: [24, Font.Bold, -0.46], title2: [20, Font.DemiBold, -0.3],
+            title3: [17, Font.DemiBold, -0.17], body: [14, Font.Normal, 0],
+            callout: [13, Font.Normal, 0], footnote: [12, Font.Normal, 0.06],
+            caption: [11, Font.Normal, 0.11] })
+    }
+
+    component Txt: Text {
+        property string role: "body"
+        font.family: pal.family
+        font.pixelSize: pal.type[role][0]
+        font.weight: pal.type[role][1]
+        font.letterSpacing: pal.type[role][2]
+        color: pal.label
+        textFormat: Text.PlainText
+        elide: Text.ElideRight
+    }
+
+    // Lucide path data, drawn as an SVG so it stays crisp and takes the theme color.
+    component Icon: Image {
+        property var paths: []
+        property color tone: pal.label
+        property int size: 16
+        width: size
+        height: size
+        sourceSize: Qt.size(size * 2, size * 2)
+        source: "data:image/svg+xml," + encodeURIComponent(
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + tone
+            + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+            + paths.map(d => "<path d='" + d + "'/>").join("") + "</svg>")
+    }
+
+    component Keycap: Rectangle {
+        property string text
+        height: 20
+        width: Math.max(20, cap.implicitWidth + 12)
+        radius: 6
+        color: pal.fillPressed
+        Txt {
+            id: cap
+            anchors.centerIn: parent
+            role: "caption"
+            text: parent.text
+            font.weight: Font.DemiBold
+        }
+    }
+
+    // A chord is keys pressed together; alternatives sit further apart.
+    component Chords: Row {
+        property var chords: []
+        spacing: 8
+        Repeater {
+            model: chords
+            delegate: Row {
+                required property var modelData
+                spacing: 2
+                Repeater {
+                    model: modelData
+                    delegate: Keycap { required property string modelData; text: modelData }
+                }
+            }
+        }
+    }
+
+    component Hint: Row {
+        property var keys: []
+        property string word
+        spacing: 6
+        Row {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+            Repeater {
+                model: keys
+                delegate: Keycap { required property string modelData; text: modelData }
+            }
+        }
+        Txt {
+            anchors.verticalCenter: parent.verticalCenter
+            role: "footnote"
+            text: word
+            color: pal.labelSecondary
+        }
+    }
+
+    component Segment: Item {
+        property bool done
+        property string label
+        property int count
+        readonly property bool active: win.showDone === done
+        implicitWidth: segText.implicitWidth + 24
+        implicitHeight: 24
+        Row {
+            id: segText
+            anchors.centerIn: parent
+            spacing: 4
+            Txt {
+                role: "footnote"
+                text: label
+                color: active ? pal.label : pal.labelSecondary
+                font.weight: active ? Font.DemiBold : Font.Normal
+            }
+            Txt {
+                role: "footnote"
+                text: count.toLocaleString(Qt.locale(), 'f', 0)
+                // Secondary grey is too faint on the thumb.
+                color: active ? pal.a(pal.label, 0.75) : pal.labelSecondary
+                font.features: ({ "tnum": 1 })
+            }
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (!active) win.switchView()
+        }
+    }
+
     Item {
         anchors.fill: parent
         LayoutMirroring.enabled: Qt.application.layoutDirection === Qt.RightToLeft
         LayoutMirroring.childrenInherit: true
 
         ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 18
-            spacing: 10
+            anchors { left: parent.left; right: parent.right; top: parent.top; bottom: footer.top; margins: 20; bottomMargin: 0 }
+            spacing: 12
 
             // Header: the two lists, switched with Tab.
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 18
+                Layout.bottomMargin: 4
+                spacing: 16
 
-                Label {
+                Txt {
+                    role: "title1"
                     text: qsTr("Reading List")
-                    font.pixelSize: 17
-                    font.bold: true
-                    color: theme.foreground
                     Layout.fillWidth: true
-                    elide: Text.ElideRight
                 }
-                Repeater {
-                    model: [
-                        { done: false, label: qsTr("Queue"), count: backend.queue.length },
-                        { done: true, label: qsTr("Read"), count: backend.done.length }
-                    ]
-                    delegate: Column {
-                        required property var modelData
-                        readonly property bool active: win.showDone === modelData.done
-                        spacing: 4
-                        Label {
-                            text: modelData.label + "  " + modelData.count.toLocaleString(Qt.locale(), 'f', 0)
-                            font.pixelSize: 13
-                            color: parent.active ? theme.accent : theme.muted
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: if (!parent.parent.active) win.switchView()
-                            }
-                        }
-                        Rectangle {
-                            width: parent.width
-                            height: 2
-                            color: parent.active ? theme.accent : "transparent"
-                        }
+                Rectangle {
+                    id: track
+                    implicitWidth: segments.implicitWidth + 4
+                    implicitHeight: 28
+                    radius: height / 2
+                    color: pal.fillPressed
+
+                    Rectangle {
+                        readonly property Item seg: win.showDone ? readSeg : queueSeg
+                        x: 2 + seg.x
+                        y: 2
+                        width: seg.width
+                        height: 24
+                        radius: 12
+                        color: pal.dark ? Qt.tint(Qt.tint(pal.bg, pal.fillPressed), pal.a(pal.tint, 0.35))
+                                        : Qt.rgba(1, 1, 1, 0.9)
+                        border.width: pal.dark ? 0 : 1
+                        border.color: pal.separator
+                        Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                    }
+                    Row {
+                        id: segments
+                        x: 2
+                        y: 2
+                        Segment { id: queueSeg; done: false; label: qsTr("Queue"); count: backend.queue.length }
+                        Segment { id: readSeg; done: true; label: qsTr("Read"); count: backend.done.length }
                     }
                 }
             }
 
-            TextField {
+            Basic.TextField {
                 id: addField
                 visible: win.adding
                 Layout.fillWidth: true
+                Layout.preferredHeight: 36
                 placeholderText: qsTr("arXiv link or id, or any web address")
+                placeholderTextColor: pal.labelTertiary
+                color: pal.label
+                palette.text: pal.label
+                selectionColor: pal.selection
+                selectedTextColor: pal.label
+                font.family: pal.family
                 font.pixelSize: 14
+                leftPadding: 48
+                rightPadding: 12
+                verticalAlignment: TextInput.AlignVCenter
+                background: Rectangle { radius: 10; color: pal.fill }
                 onAccepted: {
                     if (text.trim() !== "") {
                         win.selectTopNext = true
@@ -172,6 +321,23 @@ ApplicationWindow {
                     win.stopAdding()
                 }
                 Keys.onEscapePressed: win.stopAdding()
+
+                // Same 24px slot as the row numbers, so the text meets the titles' edge.
+                Icon {
+                    x: 12 + 24 - width
+                    anchors.verticalCenter: parent.verticalCenter
+                    paths: ["M5 12h14", "M12 5v14"]
+                    tone: pal.labelSecondary
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: -4
+                    radius: 14
+                    color: "transparent"
+                    border.width: 2
+                    border.color: pal.tint
+                    visible: addField.activeFocus
+                }
             }
 
             // The list and the abstract view share this space.
@@ -197,66 +363,70 @@ ApplicationWindow {
                         required property int index
                         readonly property bool selected: index === list.currentIndex
                         width: ListView.view.width
-                        height: 58
+                        height: 56
 
+                        HoverHandler { id: hover }
                         Rectangle {
                             anchors.fill: parent
-                            anchors.rightMargin: 10
-                            radius: Math.min(6, theme.radius)
-                            color: row.selected ? theme.selection : "transparent"
-                        }
-                        Rectangle {
-                            visible: row.selected
-                            width: 3
-                            height: parent.height - 16
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: theme.accent
+                            anchors.topMargin: 2
+                            anchors.bottomMargin: 2
+                            radius: 10
+                            color: row.selected ? pal.selection : hover.hovered ? pal.fill : "transparent"
                         }
                         RowLayout {
                             anchors.fill: parent
                             anchors.leftMargin: 12
-                            anchors.rightMargin: 22
+                            anchors.rightMargin: 12
                             spacing: 12
-                            Label {
+                            Txt {
                                 visible: !win.showDone
+                                role: "footnote"
                                 text: (row.index + 1).toLocaleString(Qt.locale(), 'f', 0)
-                                color: row.selected ? theme.foreground : theme.muted
-                                font.pixelSize: 13
+                                color: row.selected ? pal.label : pal.labelSecondary
+                                font.features: ({ "tnum": 1 })
                                 horizontalAlignment: Text.AlignRight
                                 Layout.preferredWidth: 24
                             }
-                            Label {
+                            Item {
                                 visible: win.showDone
-                                text: "✓"
-                                color: theme.accent
-                                font.pixelSize: 13
                                 Layout.preferredWidth: 24
-                                horizontalAlignment: Text.AlignRight
+                                Layout.preferredHeight: 16
+                                Icon {
+                                    anchors.right: parent.right
+                                    paths: ["M20 6 9 17l-5-5"]
+                                    tone: pal.tint
+                                }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 3
-                                Label {
+                                spacing: 2
+                                Txt {
                                     Layout.fillWidth: true
                                     text: row.modelData.title
-                                    elide: Text.ElideRight
                                     font.pixelSize: 15
-                                    color: theme.foreground
+                                    font.weight: row.selected ? Font.DemiBold : Font.Normal
                                 }
-                                Label {
+                                Txt {
                                     Layout.fillWidth: true
+                                    role: "footnote"
                                     text: row.modelData.pending ? qsTr("Fetching the title…")
                                           : win.showDone && row.modelData.read !== ""
                                             ? row.modelData.subtitle + "  ·  " + qsTr("read %1").arg(row.modelData.read)
                                             : row.modelData.subtitle
-                                    elide: Text.ElideRight
-                                    font.pixelSize: 12
                                     // Muted text is blended for the window
                                     // background and fades on the selection.
-                                    color: theme.muted
-                                    Binding on color { when: row.selected; value: Qt.rgba(Qt.color(theme.foreground).r, Qt.color(theme.foreground).g, Qt.color(theme.foreground).b, 0.75) }
+                                    color: row.selected ? pal.a(pal.label, 0.75) : pal.labelSecondary
                                 }
                             }
+                        }
+                        // Text column only: from the title's edge to the content edge.
+                        Rectangle {
+                            visible: !row.selected && row.index + 1 !== list.currentIndex && row.index < list.count - 1
+                            x: 48
+                            width: parent.width - 48 - 12
+                            y: parent.height - 1
+                            height: 1
+                            color: pal.separator
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -273,12 +443,22 @@ ApplicationWindow {
                     }
                 }
 
-                Label {
+                Column {
                     anchors.centerIn: parent
                     visible: win.papers.length === 0 && !win.abstractOpen
-                    text: win.showDone ? qsTr("Nothing read yet.") : qsTr("Nothing queued. Press A to add a paper.")
-                    color: theme.muted
-                    font.pixelSize: 14
+                    spacing: 4
+                    Txt {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        role: "title3"
+                        text: win.showDone ? qsTr("Nothing read yet") : qsTr("Nothing queued")
+                    }
+                    Txt {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        visible: !win.showDone
+                        role: "callout"
+                        text: qsTr("Press A to add a paper.")
+                        color: pal.labelSecondary
+                    }
                 }
 
                 // The abstract view: Up and Down keep moving through the list,
@@ -295,71 +475,120 @@ ApplicationWindow {
 
                     ColumnLayout {
                         id: abstractColumn
-                        y: 6
-                        width: abstractView.width - 16
-                        spacing: 10
-                        Label {
+                        y: 4
+                        width: Math.min(640, abstractView.width - 16)
+                        spacing: 12
+                        Txt {
                             Layout.fillWidth: true
+                            role: "title2"
                             text: win.info.title || ""
                             wrapMode: Text.Wrap
-                            font.pixelSize: 18
-                            font.bold: true
-                            color: theme.foreground
+                            elide: Text.ElideNone
                         }
-                        Label {
+                        Txt {
                             Layout.fillWidth: true
                             visible: text !== ""
+                            role: "callout"
                             text: win.info.authors || ""
                             wrapMode: Text.Wrap
-                            font.pixelSize: 13
-                            color: theme.accent
+                            elide: Text.ElideNone
+                            color: pal.labelSecondary
                         }
-                        Label {
+                        Txt {
                             Layout.fillWidth: true
+                            role: "footnote"
                             text: [qsTr("%1 of %2").arg(list.currentIndex + 1).arg(win.papers.length),
                                    win.info.published || "",
                                    win.info.arxivId ? "arXiv " + win.info.arxivId : (win.info.url || "")]
                                   .filter(s => s !== "").join("  ·  ")
                             wrapMode: Text.Wrap
-                            font.pixelSize: 12
-                            color: theme.muted
+                            elide: Text.ElideNone
+                            color: pal.labelSecondary
                         }
-                        Rectangle { Layout.fillWidth: true; height: 1; color: theme.selection }
-                        Label {
+                        Rectangle { Layout.fillWidth: true; height: 1; color: pal.separator }
+                        Txt {
                             Layout.fillWidth: true
                             text: win.info.loading ? qsTr("Fetching the abstract…")
                                   : win.info.error ? qsTr("Could not fetch the abstract: %1").arg(win.info.error)
                                   : (win.info.abstract || qsTr("No abstract available."))
                             wrapMode: Text.Wrap
-                            font.pixelSize: 14
-                            lineHeight: 1.25
-                            color: win.info.error ? theme.error : theme.foreground
+                            elide: Text.ElideNone
+                            // Qt scales the font's own leading, so 1.2 reads as CSS 1.45.
+                            lineHeight: 1.2
+                            color: win.info.error ? pal.danger : pal.label
+                        }
+                    }
+                }
+
+                // Floats over the list so a status never pushes the layout.
+                Rectangle {
+                    visible: backend.status !== ""
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 8
+                    width: Math.min(statusText.implicitWidth + 32, win.width - 40)
+                    height: 32
+                    radius: 16
+                    color: pal.bgElevated
+                    border.width: 1
+                    border.color: pal.separator
+                    Txt {
+                        id: statusText
+                        anchors.centerIn: parent
+                        width: parent.width - 32
+                        horizontalAlignment: Text.AlignHCenter
+                        role: "footnote"
+                        text: backend.status
+                        // Statuses end in what to do next ("Ctrl+Z brings it back");
+                        // a long title gives way in the middle instead.
+                        elide: Text.ElideMiddle
+                        color: backend.statusIsError ? pal.danger : pal.label
+                    }
+                }
+            }
+        }
+
+        // Key hints. "?" stays; the rest give way from the end in a narrow window.
+        Item {
+            id: footer
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 20; rightMargin: 20; bottomMargin: 8 }
+            height: 33
+
+            readonly property var hints: win.abstractOpen
+                ? [[["Enter"], qsTr("open")], [["↑", "↓"], qsTr("next")],
+                   [["PgUp", "PgDn"], qsTr("scroll")], [["Space", "Esc"], qsTr("back")]]
+                : win.showDone
+                  ? [[["Enter"], qsTr("open")], [["Space"], qsTr("abstract")],
+                     [["U"], qsTr("unread")], [["Tab"], qsTr("queue")]]
+                  : [[["Enter"], qsTr("open")], [["Space"], qsTr("abstract")], [["R"], qsTr("read")],
+                     [["A"], qsTr("add")], [["Shift", "↑", "↓"], qsTr("move")]]
+
+            Rectangle { width: parent.width; height: 1; color: pal.separator }
+
+            Item {
+                anchors { left: parent.left; right: keysHint.left; rightMargin: 16; top: parent.top; topMargin: 1; bottom: parent.bottom }
+                clip: true
+                Row {
+                    id: hintRow
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 16
+                    Repeater {
+                        model: footer.hints
+                        delegate: Hint {
+                            required property var modelData
+                            keys: modelData[0]
+                            word: modelData[1]
+                            visible: x + width <= hintRow.parent.width
                         }
                     }
                 }
             }
-
-            Label {
-                Layout.fillWidth: true
-                visible: backend.status !== ""
-                text: backend.status
-                // Statuses end in what to do next ("Ctrl+Z brings it back");
-                // a long title gives way in the middle instead.
-                elide: Text.ElideMiddle
-                font.pixelSize: 12
-                color: backend.statusIsError ? theme.error : theme.accent
-            }
-
-            Label {
-                Layout.fillWidth: true
-                text: win.abstractOpen
-                      ? qsTr("Enter open  ·  ↑↓ next  ·  PgUp/PgDn scroll  ·  Space/Esc back")
-                      : win.showDone
-                        ? qsTr("Enter open  ·  Space abstract  ·  U unread  ·  Tab queue  ·  ? keys")
-                        : qsTr("Enter open  ·  Space abstract  ·  R read  ·  A add  ·  Shift+↑↓ move (hold: top/bottom)  ·  ? keys")
-                elide: Text.ElideRight
-                font.pixelSize: 12
-                color: theme.muted
+            Hint {
+                id: keysHint
+                anchors.right: parent.right
+                y: hintRow.parent.y + hintRow.y
+                keys: ["?"]
+                word: qsTr("keys")
             }
         }
 
@@ -367,53 +596,71 @@ ApplicationWindow {
         Rectangle {
             anchors.fill: parent
             visible: win.helpVisible
-            color: Qt.rgba(0, 0, 0, 0.6)
+            color: Qt.rgba(0, 0, 0, 0.35)
             MouseArea { anchors.fill: parent; onClicked: win.helpVisible = false }
 
             Rectangle {
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 40, 560)
-                height: helpGrid.implicitHeight + 48
-                radius: theme.radius
-                color: theme.background
-                border.color: theme.accent
+                width: Math.min(parent.width - 40, 440)
+                height: helpGrid.implicitHeight + 2 * helpPad
+                radius: 20
+                color: pal.bgElevated
+                border.color: pal.separator
                 border.width: 1
+
+                // Padding gives way before the rows do at the minimum window height.
+                readonly property int helpPad: win.height < 480 ? 16 : 24
 
                 Column {
                     id: helpGrid
-                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
-                    spacing: 6
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: parent.helpPad }
+                    Txt {
+                        role: "title3"
+                        text: qsTr("Keys")
+                        bottomPadding: 8
+                    }
                     Repeater {
                         model: [
-                            ["Enter", qsTr("Open the paper and close")],
-                            ["Ctrl+Enter", qsTr("Open the paper, stay open")],
-                            ["Space", qsTr("Show or hide the abstract")],
-                            ["↑ ↓  /  K J", qsTr("Select")],
-                            ["Shift+↑ ↓", qsTr("Move one place")],
-                            [qsTr("Hold Shift+↑ ↓"), qsTr("Move to the top or bottom")],
-                            ["R", qsTr("Mark read (in Read: unread)")],
-                            ["A", qsTr("Add a paper (link from clipboard)")],
-                            ["D / Delete", qsTr("Remove")],
-                            ["Tab", qsTr("Switch between Queue and Read")],
-                            ["Ctrl+Z / Ctrl+Shift+Z", qsTr("Undo / redo")],
-                            ["Esc / Q", qsTr("Close")]
+                            { label: qsTr("Open the paper and close"), chords: [["Enter"]] },
+                            { label: qsTr("Open the paper, stay open"), chords: [["Ctrl", "Enter"]] },
+                            { label: qsTr("Show or hide the abstract"), chords: [["Space"]] },
+                            { label: qsTr("Select"), chords: [["↑", "↓"], ["K", "J"]] },
+                            { label: qsTr("Move one place"), chords: [["Shift", "↑", "↓"]] },
+                            { label: qsTr("Move to the top or bottom"), chords: [["Shift", "↑", "↓"]], note: qsTr("hold") },
+                            { label: qsTr("Mark read (in Read: unread)"), chords: [["R"]] },
+                            { label: qsTr("Add a paper (link from clipboard)"), chords: [["A"]] },
+                            { label: qsTr("Remove"), chords: [["D"], ["Delete"]] },
+                            { label: qsTr("Switch between Queue and Read"), chords: [["Tab"]] },
+                            { label: qsTr("Undo"), chords: [["Ctrl", "Z"]] },
+                            { label: qsTr("Redo"), chords: [["Ctrl", "Shift", "Z"]] },
+                            { label: qsTr("Close"), chords: [["Esc"], ["Q"]] }
                         ]
-                        delegate: Row {
+                        delegate: Item {
                             required property var modelData
-                            spacing: 16
-                            Label {
-                                width: 200
-                                text: modelData[0]
-                                color: theme.accent
-                                font.pixelSize: 13
-                                elide: Text.ElideRight
+                            width: helpGrid.width
+                            // Short windows squeeze the rows so the sheet still fits.
+                            height: Math.max(22, Math.min(28, (win.height - 32 - 2 * 16 - 29) / 13))
+                            Txt {
+                                anchors.left: parent.left
+                                anchors.right: chordRow.left
+                                anchors.rightMargin: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                role: "callout"
+                                text: modelData.label
                             }
-                            Label {
-                                width: helpGrid.width - 216
-                                text: modelData[1]
-                                color: theme.foreground
-                                font.pixelSize: 13
-                                wrapMode: Text.Wrap
+                            Row {
+                                id: chordRow
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 8
+                                Txt {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: !!modelData.note
+                                    role: "footnote"
+                                    text: modelData.note || ""
+                                    color: pal.labelSecondary
+                                }
+                                Chords { chords: modelData.chords }
                             }
                         }
                     }
