@@ -131,6 +131,21 @@ private slots:
         QCOMPARE(back.serialize(), out);
     }
 
+    // A leftover untitled copy made the app refetch its title forever.
+    void dropsDuplicateCopies() {
+        PaperList list = PaperList::parse(
+            "## Queue\n\n- [ ] [JEPA](https://arxiv.org/abs/2610.39302) · added 2026-11-09\n"
+            "- [ ] [B](https://arxiv.org/abs/2222.22222)\n"
+            "- [ ] https://arxiv.org/abs/2610.39302 · added 2026-11-09\n\n"
+            "## Read\n\n- [x] [B again](https://arxiv.org/abs/2222.22222) · read 2026-11-01\n");
+        QVERIFY(list.normalize());
+        QCOMPARE(list.queue.size(), 2);
+        QCOMPARE(list.queue[0].title, QString("JEPA"));
+        QCOMPARE(list.queue[1].title, QString("B"));
+        QVERIFY(list.done.isEmpty());
+        QVERIFY(!list.normalize());
+    }
+
     void editsTheQueue() {
         PaperList list;
         for (const auto &[id, t] : {std::pair{"1111.11111", "A"}, {"2222.22222", "B"}, {"3333.33333", "C"}})

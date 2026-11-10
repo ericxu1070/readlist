@@ -239,6 +239,27 @@ bool PaperList::normalize(const QDate &today) {
             changed = true;
         }
     }
+    // A paper listed twice (a hand paste, or an add that raced an older copy)
+    // keeps its first place; an untitled copy left behind would refetch forever.
+    QHash<QString, std::pair<QList<Paper> *, int>> first;
+    for (QList<Paper> *section : {&queue, &done}) {
+        for (int i = 0; i < section->size();) {
+            const Paper p = section->at(i);
+            const auto it = first.constFind(p.key());
+            if (it == first.constEnd()) {
+                first.insert(p.key(), {section, i});
+                ++i;
+                continue;
+            }
+            Paper &kept = (*it->first)[it->second];
+            if (kept.title.isEmpty())
+                kept.title = p.title;
+            if (!kept.added.isValid())
+                kept.added = p.added;
+            section->removeAt(i);
+            changed = true;
+        }
+    }
     return changed;
 }
 
