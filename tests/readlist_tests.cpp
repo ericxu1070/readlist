@@ -114,6 +114,23 @@ private slots:
         QCOMPARE(PaperList::parse(out).serialize(), out);
     }
 
+    // An add whose title is still being fetched is saved as "url · added …"; it must read back.
+    void untitledAddSurvivesARoundTrip() {
+        PaperList list;
+        Paper p;
+        p.url = "https://arxiv.org/abs/1706.03762";
+        p.added = QDate(2026, 11, 9);
+        list.add(p, true);
+        const QString out = list.serialize();
+        QVERIFY(out.contains("- [ ] https://arxiv.org/abs/1706.03762 · added 2026-11-09\n"));
+        const PaperList back = PaperList::parse(out);
+        QCOMPARE(back.queue.size(), 1);
+        QCOMPARE(back.queue[0].key(), QString("1706.03762"));
+        QCOMPARE(back.queue[0].added, QDate(2026, 11, 9));
+        QVERIFY(back.queue[0].needsTitle());
+        QCOMPARE(back.serialize(), out);
+    }
+
     void editsTheQueue() {
         PaperList list;
         for (const auto &[id, t] : {std::pair{"1111.11111", "A"}, {"2222.22222", "B"}, {"3333.33333", "C"}})

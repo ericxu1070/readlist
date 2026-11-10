@@ -75,40 +75,40 @@ QString itemLine(const Paper &p, bool done) {
 bool parseItem(const QString &line, Paper &paper, bool &ticked) {
     static const QRegularExpression linked(
         R"(^\s*[-*]\s+\[( |x|X)\]\s+\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)\s*(.*)$)");
-    static const QRegularExpression bare(R"(^\s*[-*]\s+(?:\[( |x|X)\]\s+)?<?(\S+?)>?\s*$)");
+    // Also matches the "url · added …" line itemLine() writes for a paper whose title is still pending.
+    static const QRegularExpression bare(R"(^\s*[-*]\s+(?:\[( |x|X)\]\s+)?<?([^\s>]+)>?(?:\s+(·.*))?\s*$)");
 
+    QString rest;
     auto m = linked.match(line);
     if (m.hasMatch()) {
         ticked = m.captured(1).compare("x", Qt::CaseInsensitive) == 0;
         paper.title = unescapeTitle(m.captured(2)).trimmed();
         const QString url = PaperList::canonicalUrl(m.captured(3));
         paper.url = url.isEmpty() ? m.captured(3) : url;
-        QString rest = m.captured(4).trimmed();
-        if (rest.startsWith(QStringLiteral("·")))
-            rest = rest.mid(1);
-        for (const QString &raw : rest.split(QStringLiteral("·"), Qt::SkipEmptyParts)) {
-            const QString token = raw.trimmed();
-            if (token.startsWith(QStringLiteral("added ")))
-                paper.added = QDate::fromString(token.mid(6).trimmed(), Qt::ISODate);
-            else if (token.startsWith(QStringLiteral("read ")))
-                paper.read = QDate::fromString(token.mid(5).trimmed(), Qt::ISODate);
-            else if (!token.isEmpty())
-                paper.extra << token;
-        }
-        return true;
-    }
-
-    // A bare link or arXiv id typed or pasted by hand; its title is fetched later.
-    m = bare.match(line);
-    if (m.hasMatch()) {
+        rest = m.captured(4).trimmed();
+    } else if ((m = bare.match(line)).hasMatch()) {
+        // A bare link or arXiv id typed or pasted by hand; its title is fetched later.
         const QString url = PaperList::canonicalUrl(m.captured(2));
         if (url.isEmpty())
             return false;
         ticked = m.captured(1).compare("x", Qt::CaseInsensitive) == 0;
         paper.url = url;
-        return true;
+        rest = m.captured(3).trimmed();
+    } else {
+        return false;
     }
-    return false;
+    if (rest.startsWith(QStringLiteral("·")))
+        rest = rest.mid(1);
+    for (const QString &raw : rest.split(QStringLiteral("·"), Qt::SkipEmptyParts)) {
+        const QString token = raw.trimmed();
+        if (token.startsWith(QStringLiteral("added ")))
+            paper.added = QDate::fromString(token.mid(6).trimmed(), Qt::ISODate);
+        else if (token.startsWith(QStringLiteral("read ")))
+            paper.read = QDate::fromString(token.mid(5).trimmed(), Qt::ISODate);
+        else if (!token.isEmpty())
+            paper.extra << token;
+    }
+    return true;
 }
 
 } // namespace
