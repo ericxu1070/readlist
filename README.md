@@ -19,6 +19,7 @@ arXiv link with the real title fetched for them.
 | Hold Shift+Up/Down | Move it to the top or bottom |
 | R | Mark read (in Read: back to the queue) |
 | A | Add a paper; prefilled from the clipboard |
+| S, / | Search titles and authors; Esc clears |
 | D, Delete | Remove |
 | Tab | Switch between Queue and Read |
 | Ctrl+Z, Ctrl+Shift+Z | Undo, redo |

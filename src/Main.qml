@@ -23,6 +23,8 @@ ApplicationWindow {
 
     property bool showDone: false
     property bool adding: false
+    property bool searching: false
+    property string query: ""
     property bool abstractOpen: false
     property bool helpVisible: false
     property string selectedKey: ""
@@ -30,7 +32,13 @@ ApplicationWindow {
     // Which end a held Shift+Up/Down sends the paper to.
     property string holdTarget: "top"
 
-    readonly property var papers: showDone ? backend.done : backend.queue
+    // pos is the paper's place in the full list, so a filtered row keeps its number.
+    readonly property var papers: {
+        const words = query.toLowerCase().split(/\s+/).filter(w => w !== "")
+        return (showDone ? backend.done : backend.queue)
+            .map((p, i) => Object.assign({ pos: i }, p))
+            .filter(p => words.every(w => (p.title + " " + p.subtitle).toLowerCase().includes(w)))
+    }
     readonly property var info: abstractOpen && selectedKey !== ""
                                 ? (backend.infoRevision, backend.info(selectedKey)) : ({})
 
@@ -82,6 +90,19 @@ ApplicationWindow {
 
     function stopAdding() {
         adding = false
+        list.forceActiveFocus()
+    }
+
+    function startSearch() {
+        searching = true
+        abstractOpen = false
+        helpVisible = false
+        searchField.forceActiveFocus()
+    }
+
+    function stopSearch() {
+        searching = false
+        searchField.clear()
         list.forceActiveFocus()
     }
 
@@ -213,6 +234,41 @@ ApplicationWindow {
         }
     }
 
+    // The add and search fields: a filled field with a leading glyph in the
+    // row numbers' 24px slot, so the text meets the titles' edge.
+    component Field: Basic.TextField {
+        id: field
+        property var glyph: []
+        Layout.fillWidth: true
+        Layout.preferredHeight: 36
+        placeholderTextColor: pal.labelTertiary
+        color: pal.label
+        palette.text: pal.label
+        selectionColor: pal.selection
+        selectedTextColor: pal.label
+        font.family: pal.family
+        font.pixelSize: 14
+        leftPadding: 48
+        rightPadding: 12
+        verticalAlignment: TextInput.AlignVCenter
+        background: Rectangle { radius: field.height / 2; color: pal.fill }
+        Icon {
+            x: 12 + 24 - width
+            anchors.verticalCenter: parent.verticalCenter
+            paths: field.glyph
+            tone: pal.labelSecondary
+        }
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -4
+            radius: height / 2
+            color: "transparent"
+            border.width: 2
+            border.color: pal.tint
+            visible: field.activeFocus
+        }
+    }
+
     component Segment: Item {
         property bool done
         property string label
@@ -296,23 +352,11 @@ ApplicationWindow {
                 }
             }
 
-            Basic.TextField {
+            Field {
                 id: addField
                 visible: win.adding
-                Layout.fillWidth: true
-                Layout.preferredHeight: 36
                 placeholderText: qsTr("arXiv link or id, or any web address")
-                placeholderTextColor: pal.labelTertiary
-                color: pal.label
-                palette.text: pal.label
-                selectionColor: pal.selection
-                selectedTextColor: pal.label
-                font.family: pal.family
-                font.pixelSize: 14
-                leftPadding: 48
-                rightPadding: 12
-                verticalAlignment: TextInput.AlignVCenter
-                background: Rectangle { radius: 10; color: pal.fill }
+                glyph: ["M5 12h14", "M12 5v14"]
                 onAccepted: {
                     if (text.trim() !== "") {
                         win.selectTopNext = true
@@ -321,22 +365,29 @@ ApplicationWindow {
                     win.stopAdding()
                 }
                 Keys.onEscapePressed: win.stopAdding()
+            }
 
-                // Same 24px slot as the row numbers, so the text meets the titles' edge.
-                Icon {
-                    x: 12 + 24 - width
-                    anchors.verticalCenter: parent.verticalCenter
-                    paths: ["M5 12h14", "M12 5v14"]
-                    tone: pal.labelSecondary
+            // Filters the open list as you type; arrows and Enter act on the
+            // matches, Esc clears the filter.
+            Field {
+                id: searchField
+                visible: win.searching
+                placeholderText: qsTr("Search titles and authors")
+                glyph: ["m21 21-4.34-4.34", "M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0"]
+                onTextChanged: {
+                    win.query = text
+                    // Typing picks the top match; clearing on Esc keeps the found paper.
+                    Qt.callLater(win.searching ? () => win.select(0) : win.restoreSelection)
                 }
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: -4
-                    radius: 14
-                    color: "transparent"
-                    border.width: 2
-                    border.color: pal.tint
-                    visible: addField.activeFocus
+                onAccepted: win.openSelected(false)
+                Keys.onEscapePressed: win.stopSearch()
+                Keys.onPressed: (event) => {
+                    const ctrl = event.modifiers & Qt.ControlModifier
+                    if (event.key === Qt.Key_Up) win.select(list.currentIndex - 1)
+                    else if (event.key === Qt.Key_Down) win.select(list.currentIndex + 1)
+                    else if (ctrl && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) win.openSelected(true)
+                    else return
+                    event.accepted = true
                 }
             }
 
@@ -381,7 +432,7 @@ ApplicationWindow {
                             Txt {
                                 visible: !win.showDone
                                 role: "footnote"
-                                text: (row.index + 1).toLocaleString(Qt.locale(), 'f', 0)
+                                text: (row.modelData.pos + 1).toLocaleString(Qt.locale(), 'f', 0)
                                 color: row.selected ? pal.label : pal.labelSecondary
                                 font.features: ({ "tnum": 1 })
                                 horizontalAlignment: Text.AlignRight
@@ -450,11 +501,12 @@ ApplicationWindow {
                     Txt {
                         anchors.horizontalCenter: parent.horizontalCenter
                         role: "title3"
-                        text: win.showDone ? qsTr("Nothing read yet") : qsTr("Nothing queued")
+                        text: win.query !== "" ? qsTr("No matches")
+                              : win.showDone ? qsTr("Nothing read yet") : qsTr("Nothing queued")
                     }
                     Txt {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        visible: !win.showDone
+                        visible: !win.showDone && win.query === ""
                         role: "callout"
                         text: qsTr("Press A to add a paper.")
                         color: pal.labelSecondary
@@ -554,14 +606,16 @@ ApplicationWindow {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 20; rightMargin: 20; bottomMargin: 8 }
             height: 33
 
-            readonly property var hints: win.abstractOpen
+            readonly property var hints: win.searching
+                ? [[["Enter"], qsTr("open")], [["↑", "↓"], qsTr("select")], [["Esc"], qsTr("clear")]]
+                : win.abstractOpen
                 ? [[["Enter"], qsTr("open")], [["↑", "↓"], qsTr("next")],
                    [["PgUp", "PgDn"], qsTr("scroll")], [["Space", "Esc"], qsTr("back")]]
                 : win.showDone
                   ? [[["Enter"], qsTr("open")], [["Space"], qsTr("abstract")],
-                     [["U"], qsTr("unread")], [["Tab"], qsTr("queue")]]
+                     [["U"], qsTr("unread")], [["S"], qsTr("search")], [["Tab"], qsTr("queue")]]
                   : [[["Enter"], qsTr("open")], [["Space"], qsTr("abstract")], [["R"], qsTr("read")],
-                     [["A"], qsTr("add")], [["Shift", "↑", "↓"], qsTr("move")]]
+                     [["A"], qsTr("add")], [["S"], qsTr("search")], [["Shift", "↑", "↓"], qsTr("move")]]
 
             Rectangle { width: parent.width; height: 1; color: pal.separator }
 
@@ -630,6 +684,7 @@ ApplicationWindow {
                             { label: qsTr("Mark read (in Read: unread)"), chords: [["R"]] },
                             { label: qsTr("Add a paper (link from clipboard)"), chords: [["A"]] },
                             { label: qsTr("Remove"), chords: [["D"], ["Delete"]] },
+                            { label: qsTr("Search titles and authors"), chords: [["S"], ["/"]] },
                             { label: qsTr("Switch between Queue and Read"), chords: [["Tab"]] },
                             { label: qsTr("Undo"), chords: [["Ctrl", "Z"]] },
                             { label: qsTr("Redo"), chords: [["Ctrl", "Shift", "Z"]] },
@@ -639,7 +694,7 @@ ApplicationWindow {
                             required property var modelData
                             width: helpGrid.width
                             // Short windows squeeze the rows so the sheet still fits.
-                            height: Math.max(22, Math.min(28, (win.height - 32 - 2 * 16 - 29) / 13))
+                            height: Math.max(22, Math.min(28, (win.height - 32 - 2 * 16 - 29) / 14))
                             Txt {
                                 anchors.left: parent.left
                                 anchors.right: chordRow.left
@@ -751,6 +806,10 @@ ApplicationWindow {
         case Qt.Key_A:
         case Qt.Key_N:
             startAdding()
+            return
+        case Qt.Key_S:
+        case Qt.Key_Slash:
+            startSearch()
             return
         case Qt.Key_R:
         case Qt.Key_X:
